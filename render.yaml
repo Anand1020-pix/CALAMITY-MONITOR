@@ -8,6 +8,6 @@ services:
     healthCheckPath: /health
     envVars:
       - key: FRONTEND_ORIGINS
-        value: https://your-project.vercel.app
+        value: https://calamity-monitor.vercel.app
       - key: NEWS_API_KEY
         sync: false

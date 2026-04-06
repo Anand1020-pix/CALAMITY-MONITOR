@@ -64,6 +64,20 @@
 
   /* NEWS CARDS */
   .news-cards { padding: 10px; display: flex; flex-direction: column; gap: 8px; }
+  .news-cards {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(255,255,255,0.32) rgba(255,255,255,0.05);
+  }
+  .news-cards::-webkit-scrollbar { width: 7px; }
+  .news-cards::-webkit-scrollbar-track { background: rgba(255,255,255,0.05); }
+  .news-cards::-webkit-scrollbar-thumb {
+    background: linear-gradient(180deg, rgba(255,255,255,0.5) 0%, rgba(255,255,255,0.2) 100%);
+    border-radius: 8px;
+    border: 1px solid rgba(255,255,255,0.08);
+  }
+  .news-cards::-webkit-scrollbar-thumb:hover {
+    background: linear-gradient(180deg, rgba(255,255,255,0.7) 0%, rgba(255,255,255,0.3) 100%);
+  }
   .news-card {
     border: var(--border); padding: 12px; cursor: pointer;
     transition: background 0.15s, border-color 0.15s;
@@ -237,7 +251,7 @@
   .news-card-thumb {
     width: 100%; height: 64px; background: rgba(255,255,255,0.04);
     border: var(--border); display: flex; align-items: center; justify-content: center;
-    margin-bottom: 8px; position: relative; overflow: hidden; cursor: pointer;
+    margin-bottom: 8px; position: relative; overflow: hidden; cursor: default;
     transition: background 0.15s;
   }
   .news-card-thumb:hover { background: rgba(255,255,255,0.09); }
@@ -251,8 +265,11 @@
   .thumb-play-btn {
     width:26px; height:26px; border:1.5px solid rgba(255,255,255,0.7); border-radius:50%;
     display:flex; align-items:center; justify-content:center;
-    font-size:9px; color:#fff; padding-left:2px;
+    font-size:9px; color:#fff;
     transition: border-color 0.15s, background 0.15s;
+  }
+  .thumb-play-btn.is-video {
+    padding-left:2px;
   }
   .news-card-thumb:hover .thumb-play-btn { border-color:#fff; background:rgba(255,255,255,0.12); }
   .video-badge {
@@ -275,6 +292,7 @@
     padding:10px 12px; border-top:var(--border);
     position:sticky; bottom:0; background:#000; z-index:5;
     flex-shrink:0;
+    gap:8px;
   }
   .page-btn {
     background:none; border:1px solid rgba(255,255,255,0.2); color:var(--mid);
@@ -288,6 +306,37 @@
   .page-dot { width:5px; height:5px; border-radius:50%; background:rgba(255,255,255,0.2); cursor:pointer; transition: background 0.15s; }
   .page-dot.active { background:#fff; }
   .page-dots { display:flex; gap:5px; align-items:center; }
+
+  .page-tools {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .intel-actions {
+    display: flex;
+    gap: 8px;
+    margin-top: 12px;
+    flex-wrap: wrap;
+  }
+
+  .intel-action-link {
+    font-size: 9px;
+    color: rgba(255,255,255,0.75);
+    letter-spacing: 0.08em;
+    font-family: var(--font-mono);
+    text-decoration: none;
+    border: 1px solid rgba(255,255,255,0.2);
+    padding: 5px 10px;
+    text-transform: uppercase;
+    transition: color 0.15s, border-color 0.15s, background 0.15s;
+  }
+
+  .intel-action-link:hover {
+    color: #fff;
+    border-color: #fff;
+    background: rgba(255,255,255,0.08);
+  }
 
   /* FEED FILTER BAR */
   .feed-filters {
@@ -436,18 +485,28 @@
     }
 
     .news-card-thumb {
-      height: 56px;
+      height: 90px;
     }
 
     .news-card-footer {
-      gap: 4px;
-      align-items: flex-start;
-      flex-direction: column;
+      gap: 8px;
+      align-items: center;
+      flex-direction: row;
+      justify-content: space-between;
     }
 
     .news-card-footer > div {
-      gap: 6px;
+      gap: 8px;
       flex-wrap: wrap;
+    }
+
+    .news-card-link {
+      border: 1px solid rgba(255,255,255,0.2) !important;
+      border-radius: 4px;
+      padding: 6px 12px;
+      background: rgba(255,255,255,0.05);
+      color: #fff !important;
+      text-decoration: none;
     }
 
     .feed-pagination {
@@ -500,7 +559,7 @@
     }
 
     .news-card-thumb {
-      height: 52px;
+      height: 100px;
     }
 
     .legend {
@@ -596,6 +655,22 @@ function timeAgo(iso) {
   return `${Math.floor(diff/86400)}d ago`;
 }
 
+function fullTimestamp(iso) {
+  if (!iso) return "Unknown";
+  const dt = new Date(iso);
+  if (Number.isNaN(dt.getTime())) return "Unknown";
+  return dt.toLocaleString("en-GB", {
+    year: "numeric",
+    month: "short",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false,
+    timeZoneName: "short"
+  });
+}
+
 // ─── Flash Alert Banner ───────────────────────────────────────────────────────
 function FlashAlert({ alert, onDismiss }) {
   useEffect(() => { const t = setTimeout(onDismiss, 5000); return () => clearTimeout(t); }, []);
@@ -634,12 +709,12 @@ function NewsCard({ item, active, onClick }) {
       <div className="news-card-title">{item.title}</div>
 
       {/* Thumbnail / video */}
-      <div className="news-card-thumb" onClick={item.videoUrl ? openVideo : (e) => openLink(e, item.url)}>
+      <div className="news-card-thumb">
         {item.image && !imgErr ? (
           <>
             <img src={item.image} alt="" onError={() => setImgErr(true)} />
             <div className="thumb-play">
-              <div className="thumb-play-btn">{item.videoUrl ? "▶" : "↗"}</div>
+              <div className={`thumb-play-btn ${item.videoUrl ? 'is-video' : ''}`}>{item.videoUrl ? "▶" : "↗"}</div>
             </div>
             {item.videoUrl && <div className="video-badge">VIDEO</div>}
           </>
@@ -660,7 +735,7 @@ function NewsCard({ item, active, onClick }) {
           )}
           {item.url && (
             <a className="news-card-link" href={item.url} target="_blank" rel="noopener noreferrer"
-               onClick={e => e.stopPropagation()}>↗ Read</a>
+               onClick={e => e.stopPropagation()}>◎ Feed</a>
           )}
         </div>
       </div>
@@ -706,7 +781,7 @@ function useReverseGeocode(lat, lng) {
   return { place, loading };
 }
 
-function IntelPanel({ event }) {
+function IntelPanel({ event, relatedNews }) {
   const { place, loading } = useReverseGeocode(event?.lat, event?.lng);
 
   if (!event) return (
@@ -796,7 +871,7 @@ function IntelPanel({ event }) {
         </div>
         <div className="intel-field">
           <span className="intel-key">TIMESTAMP</span>
-          <span className="intel-val">{timeAgo(event.timestamp)}</span>
+          <span className="intel-val" title={fullTimestamp(event.timestamp)}>{timeAgo(event.timestamp)}</span>
         </div>
       </div>
 
@@ -807,6 +882,26 @@ function IntelPanel({ event }) {
           <span className={`intel-val sev-${event.severity}`}>{event.population || "Calculating..."}</span>
         </div>
         <div className="intel-desc">{event.description}</div>
+        {relatedNews && (
+          <div className="intel-actions">
+            {relatedNews.videoUrl && (
+              <a
+                className="intel-action-link"
+                href={relatedNews.videoUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+              >▶ Video</a>
+            )}
+            {relatedNews.url && (
+              <a
+                className="intel-action-link"
+                href={relatedNews.url}
+                target="_blank"
+                rel="noopener noreferrer"
+              >◎ Feed</a>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );
@@ -1172,6 +1267,7 @@ function LiveFeed({ news, activeNews, onNewsClick }) {
   const [page, setPage]     = useState(0);
   const [filter, setFilter] = useState("ALL");
   const [cacheAge, setCacheAge] = useState(null);
+  const newsScrollRef = useRef(null);
 
   // Simulate cache timestamp display
   useEffect(() => {
@@ -1190,6 +1286,30 @@ function LiveFeed({ news, activeNews, onNewsClick }) {
 
   // Reset to page 0 when filter changes
   useEffect(() => { setPage(0); }, [filter]);
+
+  // Keep selected feed visible in-place (including selections coming from globe clicks).
+  useEffect(() => {
+    if (!activeNews) return;
+    const activeItem = news.find(n => n.id === activeNews);
+    if (!activeItem) return;
+
+    const isVisibleInFilter =
+      filter === "ALL" || (TYPE_LABELS[activeItem.type] || activeItem.type?.toUpperCase()) === filter;
+
+    if (!isVisibleInFilter) {
+      setFilter("ALL");
+      return;
+    }
+
+    const pool = filter === "ALL"
+      ? news
+      : news.filter(n => (TYPE_LABELS[n.type] || n.type?.toUpperCase()) === filter);
+    const idx = pool.findIndex(n => n.id === activeNews);
+    if (idx >= 0) {
+      const nextPage = Math.floor(idx / ITEMS_PER_PAGE);
+      setPage(prev => (prev === nextPage ? prev : nextPage));
+    }
+  }, [activeNews, news, filter]);
 
   const cacheLabel = cacheAge
     ? `CACHED ${Math.floor((Date.now()-cacheAge)/60000)}m AGO`
@@ -1221,7 +1341,7 @@ function LiveFeed({ news, activeNews, onNewsClick }) {
       </div>
 
       {/* Cards */}
-      <div className="news-cards" style={{flex:1, overflowY:"auto", paddingBottom:4}}>
+      <div className="news-cards" ref={newsScrollRef} style={{flex:1, overflowY:"auto", paddingBottom:4}}>
         {paginated.length === 0 && (
           <div style={{padding:"24px 12px", textAlign:"center", fontSize:10, color:"var(--mid)", letterSpacing:"0.1em", fontFamily:"var(--font-mono)"}}>
             NO {filter} EVENTS
@@ -1249,7 +1369,13 @@ function LiveFeed({ news, activeNews, onNewsClick }) {
             </div>
             <span className="page-info">{page+1} / {totalPages}</span>
           </div>
-          <button className="page-btn" disabled={page>=totalPages-1} onClick={() => setPage(p=>p+1)}>NEXT →</button>
+          <div className="page-tools">
+            <button className="page-btn" disabled={page>=totalPages-1} onClick={() => setPage(p=>p+1)}>NEXT →</button>
+            <button
+              className="page-btn"
+              onClick={() => newsScrollRef.current?.scrollBy({ top: 260, behavior: "smooth" })}
+            >↓ SCROLL</button>
+          </div>
         </div>
       )}
     </div>
@@ -1327,6 +1453,8 @@ function App() {
     total:  events.length,
   };
 
+  const relatedNews = selected ? news.find(n => n.eventId === selected.id) : null;
+
   return (
     <div style={{height:"100vh", display:"flex", flexDirection:"column", background:"#000"}}>
       {flashAlert && <FlashAlert alert={flashAlert} onDismiss={() => setFlashAlert(null)} />}
@@ -1370,7 +1498,7 @@ function App() {
           <div className="statusbar">
             <span className="status-item">WS: {wsStatus}</span>
             <span className="status-sep">|</span>
-            <span className="status-item">UTC {clock.toUTCString().slice(17,25)}</span>
+            <span className="status-item">IST {clock.toLocaleTimeString("en-GB", { timeZone: "Asia/Kolkata", hour12: false })}</span>
             <span className="status-sep">|</span>
             <span className="status-item">SOURCES: USGS · GDACS</span>
             <span className="status-sep">|</span>
@@ -1392,7 +1520,7 @@ function App() {
               >×</button>
             )}
           </div>
-          <IntelPanel event={selected} />
+          <IntelPanel event={selected} relatedNews={relatedNews} />
         </div>
       </div>
     </div>

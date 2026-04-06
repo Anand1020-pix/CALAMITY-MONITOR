@@ -68,6 +68,10 @@ Calamity Monitor is a real-time disaster intelligence dashboard with a FastAPI b
 - Real-time status indicators for data stream and clock.
 - Side-panel intelligence cards for selected incidents.
 
+## Frontend deployment
+
+- Live frontend: https://calamity-monitor.vercel.app/
+
 ## Tech stack
 
 - Frontend: React (UMD + Babel), Globe.gl, plain CSS.
