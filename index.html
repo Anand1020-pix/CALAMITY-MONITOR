@@ -4,6 +4,8 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>CALAMITY MONITOR</title>
+<link rel="icon" type="image/svg+xml" href="./logo-cm.svg" />
+<link rel="shortcut icon" href="./logo-cm.svg" />
 <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
 <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
 <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
@@ -109,6 +111,18 @@
     padding: 12px 16px; border-bottom: var(--border); display: flex; 
     align-items: center; gap: 12px; background: #000; z-index: 20;
     flex-shrink: 0;
+  }
+  .brand-wrap {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    min-width: 0;
+  }
+  .cm-logo {
+    width: 28px;
+    height: 28px;
+    flex-shrink: 0;
+    display: block;
   }
   .brand { font-family: var(--font-mono); font-size: 12px; font-weight: 700; letter-spacing: 0.25em; white-space: nowrap; }
   .search-wrap { flex: 1; position: relative; }
@@ -403,6 +417,10 @@
       padding: 10px 10px 8px;
     }
 
+    .brand-wrap {
+      width: 100%;
+    }
+
     .brand {
       width: 100%;
       font-size: 9px;
@@ -601,6 +619,23 @@ const { useState, useEffect, useRef, useCallback } = React;
 const config = window.CALAMITY_CONFIG || {};
 const API_BASE = config.API_BASE || "http://localhost:8000";
 const WS_URL = config.WS_URL || `${API_BASE.replace(/^http/i, "ws")}/ws`;
+
+function CMLogo() {
+  return (
+    <svg
+      className="cm-logo"
+      viewBox="0 0 64 64"
+      role="img"
+      aria-label="CM logo"
+      xmlns="http://www.w3.org/2000/svg"
+    >
+      <rect x="1" y="1" width="62" height="62" fill="none" stroke="rgba(255,255,255,0.6)" strokeWidth="2" />
+      <path d="M24 18H14v28h10" fill="none" stroke="#ffffff" strokeWidth="6" strokeLinecap="square" />
+      <path d="M40 46V18l8 12 8-12v28" fill="none" stroke="#ff3333" strokeWidth="6" strokeLinejoin="miter" />
+      <circle cx="8" cy="8" r="2" fill="#ff3333" />
+    </svg>
+  );
+}
 
 // ─── Mock data for demo (replace with real API) ───────────────────────────────
 const MOCK_EVENTS = [
@@ -1465,7 +1500,10 @@ function App() {
         {/* CENTER: GLOBE */}
         <div className="center">
           <div className="topbar">
-            <span className="brand">CALAMITY MONITOR</span>
+            <div className="brand-wrap">
+              <CMLogo />
+              <span className="brand">CALAMITY MONITOR</span>
+            </div>
             <SearchBox onFlyTo={setFlyTo} />
             <div className="stats-row">
               <div className="stat">

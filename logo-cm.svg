@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="CM logo">
+  <rect x="1" y="1" width="62" height="62" fill="none" stroke="rgba(255,255,255,0.6)" stroke-width="2"/>
+  <path d="M24 18H14v28h10" fill="none" stroke="#ffffff" stroke-width="6" stroke-linecap="square"/>
+  <path d="M40 46V18l8 12 8-12v28" fill="none" stroke="#ff3333" stroke-width="6" stroke-linejoin="miter"/>
+  <circle cx="8" cy="8" r="2" fill="#ff3333"/>
+</svg>
