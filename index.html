@@ -1,0 +1,1319 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>CALAMITY MONITOR</title>
+<script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<script src="https://unpkg.com/globe.gl@2.30.0/dist/globe.gl.min.js"></script>
+<script src="./config.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=DM+Mono:wght@300;400;500&display=swap" rel="stylesheet" />
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --black: #000000;
+    --white: #ffffff;
+    --dim: rgba(255,255,255,0.12);
+    --mid: rgba(255,255,255,0.35);
+    --bright: rgba(255,255,255,0.75);
+    --red: #ff3333;
+    --orange: #ff8800;
+    --yellow: #ffdd00;
+    --green: #00ff88;
+    --border: 1px solid rgba(255,255,255,0.18);
+    --font-mono: 'Space Mono', monospace;
+    --font-body: 'DM Mono', monospace;
+  }
+  html, body, #root { height: 100%; background: #000; color: #fff; font-family: var(--font-body); overflow: hidden; }
+  
+  /* LAYOUT */
+  .shell { display: grid; grid-template-columns: 300px 1fr 300px; height: 100vh; gap: 0; }
+
+  /* SIDEBAR SHARED */
+  .sidebar { 
+    height: 100vh; overflow-y: auto; border-right: var(--border); 
+    background: #000; display: flex; flex-direction: column; 
+  }
+  .sidebar::-webkit-scrollbar { width: 3px; }
+  .sidebar::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.2); }
+  .sidebar-header { 
+    padding: 16px 16px 12px; border-bottom: var(--border); 
+    position: sticky; top: 0; background: #000; z-index: 10;
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .sidebar-title { font-family: var(--font-mono); font-size: 10px; font-weight: 700; letter-spacing: 0.2em; color: var(--bright); text-transform: uppercase; }
+  .sidebar-count { font-size: 10px; color: var(--mid); font-family: var(--font-mono); }
+
+  /* RIGHT SIDEBAR */
+  .sidebar-right { border-right: none; border-left: var(--border); }
+
+  /* LIVE PULSE DOT */
+  .pulse-wrap { display: flex; align-items: center; gap: 6px; }
+  .pulse-dot { 
+    width: 7px; height: 7px; border-radius: 50%; background: var(--red);
+    box-shadow: 0 0 0 0 rgba(255,51,51,0.5);
+    animation: pulse-anim 1.5s infinite;
+  }
+  @keyframes pulse-anim {
+    0%   { box-shadow: 0 0 0 0 rgba(255,51,51,0.6); }
+    70%  { box-shadow: 0 0 0 8px rgba(255,51,51,0); }
+    100% { box-shadow: 0 0 0 0 rgba(255,51,51,0); }
+  }
+
+  /* NEWS CARDS */
+  .news-cards { padding: 10px; display: flex; flex-direction: column; gap: 8px; }
+  .news-card {
+    border: var(--border); padding: 12px; cursor: pointer;
+    transition: background 0.15s, border-color 0.15s;
+    position: relative; overflow: hidden;
+  }
+  .news-card:hover { background: rgba(255,255,255,0.05); border-color: rgba(255,255,255,0.4); }
+  .news-card.active { background: rgba(255,255,255,0.08); border-color: #fff; }
+  .news-card-badge {
+    display: inline-block; font-size: 9px; font-family: var(--font-mono); font-weight: 700;
+    letter-spacing: 0.12em; padding: 2px 7px; margin-bottom: 7px; text-transform: uppercase;
+  }
+  .news-card-title { font-size: 11.5px; line-height: 1.55; color: var(--bright); margin-bottom: 8px; }
+  .news-card-thumb { 
+    width: 100%; height: 52px; background: rgba(255,255,255,0.06); 
+    border: var(--border); display: flex; align-items: center; justify-content: center;
+    margin-bottom: 8px;
+  }
+  .news-card-thumb-inner { font-size: 9px; color: var(--mid); letter-spacing: 0.1em; text-transform: uppercase; }
+  .news-card-meta { display: flex; justify-content: space-between; align-items: center; }
+  .news-card-time { font-size: 9px; color: var(--mid); font-family: var(--font-mono); }
+  .news-card-src { font-size: 9px; color: var(--mid); text-transform: uppercase; letter-spacing: 0.1em; }
+
+  /* CENTER */
+  .center { position: relative; display: flex; flex-direction: column; }
+  #globe-mount { flex: 1; position: relative; }
+
+  /* TOP BAR */
+  .topbar { 
+    padding: 12px 16px; border-bottom: var(--border); display: flex; 
+    align-items: center; gap: 12px; background: #000; z-index: 20;
+    flex-shrink: 0;
+  }
+  .brand { font-family: var(--font-mono); font-size: 12px; font-weight: 700; letter-spacing: 0.25em; white-space: nowrap; }
+  .search-wrap { flex: 1; position: relative; }
+  .search-input { 
+    width: 100%; background: transparent; border: var(--border); color: #fff;
+    font-family: var(--font-body); font-size: 12px; padding: 7px 32px 7px 12px;
+    outline: none; letter-spacing: 0.05em;
+    transition: border-color 0.15s;
+  }
+  .search-input:focus { border-color: rgba(255,255,255,0.6); }
+  .search-input::placeholder { color: var(--mid); }
+  .search-btn { 
+    position: absolute; right: 8px; top: 50%; transform: translateY(-50%);
+    background: none; border: none; color: var(--mid); cursor: pointer; 
+    font-size: 14px; padding: 2px 4px;
+    transition: color 0.15s;
+  }
+  .search-btn:hover { color: #fff; }
+  .stats-row { display: flex; gap: 16px; }
+  .stat { text-align: center; }
+  .stat-num { font-family: var(--font-mono); font-size: 16px; font-weight: 700; line-height: 1; }
+  .stat-lbl { font-size: 8px; color: var(--mid); letter-spacing: 0.12em; text-transform: uppercase; margin-top: 2px; }
+
+  /* STATUS BAR */
+  .statusbar { 
+    padding: 6px 16px; border-top: var(--border); display: flex; 
+    align-items: center; gap: 16px; background: #000; flex-shrink: 0;
+  }
+  .status-item { font-size: 9px; color: var(--mid); letter-spacing: 0.1em; text-transform: uppercase; font-family: var(--font-mono); }
+  .status-sep { color: rgba(255,255,255,0.15); }
+  .github-watermark {
+    margin-left: auto;
+    opacity: 0.55;
+    letter-spacing: 0.08em;
+  }
+  .github-watermark a {
+    color: var(--mid);
+    text-decoration: none;
+    transition: opacity 0.15s, color 0.15s;
+  }
+  .github-watermark a:hover {
+    opacity: 1;
+    color: var(--bright);
+  }
+
+  /* INTEL PANEL */
+  .intel-panel { padding: 10px; }
+  .intel-empty { 
+    display: flex; flex-direction: column; align-items: center; justify-content: center; 
+    height: 200px; gap: 12px; color: var(--mid);
+  }
+  .intel-empty-icon { font-size: 32px; opacity: 0.3; }
+  .intel-empty-text { font-size: 10px; letter-spacing: 0.15em; text-transform: uppercase; color: var(--mid); }
+  .intel-card { border: var(--border); padding: 14px; margin-bottom: 10px; }
+  .intel-card-title { font-family: var(--font-mono); font-size: 9px; font-weight: 700; letter-spacing: 0.2em; color: var(--mid); text-transform: uppercase; margin-bottom: 12px; }
+  .intel-field { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 9px; gap: 8px; }
+  .intel-key { font-size: 9px; color: var(--mid); letter-spacing: 0.1em; text-transform: uppercase; white-space: nowrap; }
+  .intel-val { font-size: 11px; color: var(--bright); text-align: right; font-family: var(--font-mono); font-weight: 400; }
+  .intel-desc { font-size: 11px; color: var(--bright); line-height: 1.6; margin-top: 10px; border-top: var(--border); padding-top: 10px; }
+  .severity-bar { height: 3px; width: 100%; background: rgba(255,255,255,0.1); margin-top: 12px; }
+  .severity-fill { height: 100%; transition: width 0.4s ease; }
+
+  /* FLASH ALERT OVERLAY */
+  .flash-overlay { 
+    position: fixed; top: 0; left: 0; right: 0; z-index: 9999;
+    padding: 10px 20px; background: var(--red); color: #000;
+    font-family: var(--font-mono); font-size: 11px; font-weight: 700;
+    letter-spacing: 0.15em; text-transform: uppercase;
+    display: flex; align-items: center; gap: 12px;
+    animation: slide-down 0.3s ease, fade-out 0.4s ease 4.6s forwards;
+  }
+  @keyframes slide-down { from { transform: translateY(-100%); } to { transform: translateY(0); } }
+  @keyframes fade-out { to { opacity: 0; transform: translateY(-100%); } }
+
+  /* RIPPLE LEGEND */
+  .legend { 
+    position: absolute; bottom: 36px; left: 50%; transform: translateX(-50%);
+    display: flex; gap: 16px; background: rgba(0,0,0,0.7); padding: 8px 16px; 
+    border: var(--border); z-index: 10;
+  }
+  .legend-item { display: flex; align-items: center; gap: 6px; }
+  .legend-dot { width: 8px; height: 8px; border-radius: 50%; }
+  .legend-label { font-size: 9px; color: var(--mid); letter-spacing: 0.12em; text-transform: uppercase; font-family: var(--font-mono); }
+
+  @keyframes shimmer {
+    0%   { opacity: 0.3; }
+    50%  { opacity: 1; }
+    100% { opacity: 0.3; }
+  }
+
+  /* SEARCH DROPDOWN */
+  .search-wrap { flex: 1; position: relative; }
+  .search-dropdown {
+    position: absolute; top: calc(100% + 6px); left: 0; right: 0;
+    background: #000; border: 1px solid rgba(255,255,255,0.35);
+    z-index: 9000; max-height: 320px; overflow-y: auto;
+  }
+  .search-dropdown::-webkit-scrollbar { width: 3px; }
+  .search-dropdown::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.2); }
+  .search-section-label {
+    font-family: var(--font-mono); font-size: 8px; font-weight: 700;
+    letter-spacing: 0.2em; color: var(--mid); text-transform: uppercase;
+    padding: 8px 12px 5px; border-bottom: 1px solid rgba(255,255,255,0.07);
+  }
+  .search-item {
+    display: flex; align-items: center; gap: 10px;
+    padding: 9px 12px; cursor: pointer;
+    transition: background 0.1s;
+    border-bottom: 1px solid rgba(255,255,255,0.05);
+  }
+  .search-item:last-child { border-bottom: none; }
+  .search-item:hover, .search-item.highlighted { background: rgba(255,255,255,0.07); }
+  .search-item-icon { font-size: 11px; color: var(--mid); flex-shrink: 0; width: 14px; text-align: center; }
+  .search-item-text { flex: 1; min-width: 0; }
+  .search-item-name { font-size: 11px; color: var(--bright); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .search-item-sub  { font-size: 9px; color: var(--mid); margin-top: 1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-family: var(--font-mono); letter-spacing: 0.06em; }
+  .search-item-badge { font-size: 8px; font-family: var(--font-mono); font-weight: 700; letter-spacing: 0.1em; padding: 2px 6px; flex-shrink: 0; }
+  .search-empty { padding: 14px 12px; font-size: 11px; color: var(--mid); text-align: center; letter-spacing: 0.08em; font-family: var(--font-mono); }
+  .search-loading { padding: 10px 12px; display: flex; align-items: center; gap: 8px; }
+  .search-loading-dot { width: 4px; height: 4px; border-radius: 50%; background: var(--mid); animation: blink 1s infinite; }
+  .search-loading-dot:nth-child(2) { animation-delay: 0.2s; }
+  .search-loading-dot:nth-child(3) { animation-delay: 0.4s; }
+  @keyframes blink { 0%,80%,100%{opacity:0.2} 40%{opacity:1} }
+
+  /* SEVERITY COLORS */
+  .sev-red { color: var(--red); }
+  .sev-orange { color: var(--orange); }
+  .sev-yellow { color: var(--yellow); }
+  .sev-green { color: var(--green); }
+  .bg-sev-red { background: var(--red); }
+  .bg-sev-orange { background: var(--orange); }
+  .bg-sev-yellow { background: var(--yellow); }
+  .bg-sev-green { background: var(--green); }
+  .border-sev-red { border: 1px solid var(--red); color: var(--red); }
+  .border-sev-orange { border: 1px solid var(--orange); color: var(--orange); }
+  .border-sev-yellow { border: 1px solid var(--yellow); color: var(--yellow); }
+  .border-sev-green { border: 1px solid var(--green); color: var(--green); }
+
+  /* ENHANCED NEWS CARD */
+  .news-card-thumb {
+    width: 100%; height: 64px; background: rgba(255,255,255,0.04);
+    border: var(--border); display: flex; align-items: center; justify-content: center;
+    margin-bottom: 8px; position: relative; overflow: hidden; cursor: pointer;
+    transition: background 0.15s;
+  }
+  .news-card-thumb:hover { background: rgba(255,255,255,0.09); }
+  .news-card-thumb img { width:100%; height:100%; object-fit:cover; opacity:0.7; transition: opacity 0.2s; display:block; }
+  .news-card-thumb img:hover { opacity:0.95; }
+  .news-card-thumb-inner { font-size: 9px; color: var(--mid); letter-spacing: 0.1em; text-transform: uppercase; }
+  .thumb-play {
+    position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
+    background: rgba(0,0,0,0.45);
+  }
+  .thumb-play-btn {
+    width:26px; height:26px; border:1.5px solid rgba(255,255,255,0.7); border-radius:50%;
+    display:flex; align-items:center; justify-content:center;
+    font-size:9px; color:#fff; padding-left:2px;
+    transition: border-color 0.15s, background 0.15s;
+  }
+  .news-card-thumb:hover .thumb-play-btn { border-color:#fff; background:rgba(255,255,255,0.12); }
+  .video-badge {
+    position:absolute; top:5px; right:5px;
+    background:#000; border:1px solid rgba(255,255,255,0.4);
+    font-size:7px; font-family:var(--font-mono); font-weight:700;
+    letter-spacing:0.12em; color:var(--bright); padding:2px 5px; text-transform:uppercase;
+  }
+  .news-card-footer { display:flex; justify-content:space-between; align-items:center; margin-top:6px; gap:6px; }
+  .news-card-link {
+    font-size:9px; color:rgba(255,255,255,0.4); letter-spacing:0.08em; font-family:var(--font-mono);
+    text-decoration:none; border-bottom:1px solid rgba(255,255,255,0.15);
+    transition: color 0.15s, border-color 0.15s; white-space:nowrap;
+  }
+  .news-card-link:hover { color:#fff; border-color:#fff; }
+
+  /* PAGINATION */
+  .feed-pagination {
+    display:flex; align-items:center; justify-content:space-between;
+    padding:10px 12px; border-top:var(--border);
+    position:sticky; bottom:0; background:#000; z-index:5;
+    flex-shrink:0;
+  }
+  .page-btn {
+    background:none; border:1px solid rgba(255,255,255,0.2); color:var(--mid);
+    font-family:var(--font-mono); font-size:9px; letter-spacing:0.1em;
+    padding:4px 10px; cursor:pointer; text-transform:uppercase;
+    transition: border-color 0.15s, color 0.15s;
+  }
+  .page-btn:hover:not(:disabled) { border-color:#fff; color:#fff; }
+  .page-btn:disabled { opacity:0.25; cursor:not-allowed; }
+  .page-info { font-size:9px; font-family:var(--font-mono); color:var(--mid); letter-spacing:0.1em; }
+  .page-dot { width:5px; height:5px; border-radius:50%; background:rgba(255,255,255,0.2); cursor:pointer; transition: background 0.15s; }
+  .page-dot.active { background:#fff; }
+  .page-dots { display:flex; gap:5px; align-items:center; }
+
+  /* FEED FILTER BAR */
+  .feed-filters {
+    display:flex; gap:4px; padding:8px 10px; border-bottom:var(--border); flex-wrap:wrap; flex-shrink:0;
+  }
+  .feed-filter-btn {
+    font-size:8px; font-family:var(--font-mono); font-weight:700; letter-spacing:0.1em;
+    padding:3px 8px; cursor:pointer; text-transform:uppercase; background:none;
+    border:1px solid rgba(255,255,255,0.15); color:var(--mid);
+    transition: all 0.12s;
+  }
+  .feed-filter-btn:hover { border-color:rgba(255,255,255,0.5); color:var(--bright); }
+  .feed-filter-btn.active { border-color:#fff; color:#fff; background:rgba(255,255,255,0.06); }
+
+  /* CACHE BADGE */
+  .cache-badge {
+    font-size:7px; font-family:var(--font-mono); letter-spacing:0.1em;
+    padding:1px 5px; text-transform:uppercase; border:1px solid rgba(255,255,255,0.12);
+    color:rgba(255,255,255,0.3);
+  }
+
+  /* MOBILE + TABLET RESPONSIVE LAYOUT */
+  @media (max-width: 980px) {
+    html, body, #root { overflow: auto; }
+
+    .shell {
+      grid-template-columns: 1fr;
+      grid-template-rows: auto minmax(52vh, 1fr) auto;
+      height: auto;
+      min-height: 100vh;
+    }
+
+    .center {
+      order: 1;
+      min-height: 62vh;
+    }
+
+    .sidebar,
+    .sidebar-right {
+      height: auto;
+      max-height: none;
+      border-right: none;
+    }
+
+    .sidebar {
+      order: 2;
+      border-top: var(--border);
+    }
+
+    .sidebar-right {
+      order: 3;
+      border-left: none;
+      border-top: var(--border);
+    }
+
+    .topbar {
+      flex-wrap: wrap;
+      gap: 10px;
+      padding: 10px 12px;
+    }
+
+    .brand {
+      width: 100%;
+      font-size: 10px;
+      letter-spacing: 0.18em;
+    }
+
+    .search-wrap {
+      order: 2;
+      width: 100%;
+      flex: 1 1 100%;
+    }
+
+    .stats-row {
+      order: 3;
+      width: 100%;
+      justify-content: space-between;
+    }
+
+    #globe-mount {
+      min-height: 54vh;
+    }
+
+    .legend {
+      left: 12px;
+      right: 12px;
+      transform: none;
+      justify-content: space-between;
+      gap: 10px;
+      padding: 7px 10px;
+      flex-wrap: wrap;
+    }
+
+    .statusbar {
+      flex-wrap: wrap;
+      gap: 8px 12px;
+      padding: 8px 12px;
+    }
+
+    .status-sep {
+      display: none;
+    }
+
+    .github-watermark {
+      margin-left: 0;
+      width: 100%;
+      text-align: right;
+    }
+
+    .news-cards {
+      max-height: 50vh;
+    }
+
+    .feed-pagination {
+      position: static;
+    }
+
+    .intel-panel {
+      padding: 8px;
+    }
+  }
+
+  @media (max-width: 600px) {
+    .shell {
+      grid-template-rows: auto minmax(45vh, 1fr) auto;
+    }
+
+    .brand {
+      font-size: 9px;
+    }
+
+    .stat-num {
+      font-size: 14px;
+    }
+
+    .status-item {
+      font-size: 8px;
+    }
+
+    .github-watermark a {
+      font-size: 8px;
+    }
+
+    .news-card-title {
+      font-size: 11px;
+      line-height: 1.45;
+    }
+
+    .news-card-thumb {
+      height: 58px;
+    }
+
+    .legend {
+      bottom: 12px;
+    }
+  }
+
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<script type="text/babel">
+const { useState, useEffect, useRef, useCallback } = React;
+
+const config = window.CALAMITY_CONFIG || {};
+const API_BASE = config.API_BASE || "http://localhost:8000";
+const WS_URL = config.WS_URL || `${API_BASE.replace(/^http/i, "ws")}/ws`;
+
+// ─── Mock data for demo (replace with real API) ───────────────────────────────
+const MOCK_EVENTS = [
+  { id: "a1", type: "earthquake", severity: "red",    lat: 35.6895,  lng: 139.6917, magnitude: 7.2, description: "M7.2 - Near Tokyo, Japan",               timestamp: new Date(Date.now()-3e5).toISOString(),  population: "38,000,000", source: "USGS"  },
+  { id: "a2", type: "cyclone",    severity: "orange",  lat: 20.5937,  lng: 78.9629,  magnitude: 5.1, description: "Cyclone BIPARJOY - Bay of Bengal",        timestamp: new Date(Date.now()-8e5).toISOString(),  population: "12,400,000", source: "GDACS" },
+  { id: "a3", type: "flood",      severity: "orange",  lat: 23.6850,  lng: 90.3563,  magnitude: 4.8, description: "Severe flooding - Bangladesh Delta",      timestamp: new Date(Date.now()-1.5e6).toISOString(), population: "5,200,000",  source: "GDACS" },
+  { id: "a4", type: "earthquake", severity: "yellow",  lat: 37.0902,  lng:-95.7129,  magnitude: 5.6, description: "M5.6 - Oklahoma, USA",                    timestamp: new Date(Date.now()-2e6).toISOString(),  population: "780,000",   source: "USGS"  },
+  { id: "a5", type: "volcano",    severity: "red",     lat:-8.3405,   lng: 115.0920, magnitude: 6.8, description: "Volcanic eruption - Mt. Agung, Bali",     timestamp: new Date(Date.now()-3.5e6).toISOString(), population: "4,100,000",  source: "GDACS" },
+  { id: "a6", type: "earthquake", severity: "yellow",  lat:-33.8688,  lng: 151.2093, magnitude: 4.9, description: "M4.9 - Off coast Sydney, Australia",      timestamp: new Date(Date.now()-4e6).toISOString(),  population: "320,000",   source: "USGS"  },
+  { id: "a7", type: "flood",      severity: "green",   lat: 51.5074,  lng:-0.1278,   magnitude: 3.2, description: "River Thames flooding warning",            timestamp: new Date(Date.now()-5e6).toISOString(),  population: "2,100,000",  source: "GDACS" },
+  { id: "a8", type: "earthquake", severity: "orange",  lat: 38.9637,  lng: 35.2433,  magnitude: 6.1, description: "M6.1 - Central Anatolia, Turkey",          timestamp: new Date(Date.now()-6e6).toISOString(),  population: "3,800,000",  source: "USGS"  },
+  { id: "a9", type: "cyclone",    severity: "yellow",  lat:-20.1700,  lng: 57.5,     magnitude: 4.3, description: "Tropical Cyclone - SW Indian Ocean",       timestamp: new Date(Date.now()-7e6).toISOString(),  population: "890,000",   source: "GDACS" },
+  { id:"a10", type: "earthquake", severity: "red",     lat:-2.2150,   lng:-79.8830,  magnitude: 7.5, description: "M7.5 - Ecuador–Peru border zone",          timestamp: new Date(Date.now()-9e6).toISOString(),  population: "9,200,000",  source: "USGS"  },
+];
+
+// ─── News Cache (in-memory, TTL 5 min) ──────────────────────────────────────
+const newsCache = { data: null, ts: 0, TTL: 300_000 };
+function getCachedNews() {
+  if (newsCache.data && Date.now() - newsCache.ts < newsCache.TTL) return newsCache.data;
+  return null;
+}
+function setCachedNews(data) { newsCache.data = data; newsCache.ts = Date.now(); }
+
+const ITEMS_PER_PAGE = 4;
+
+const MOCK_NEWS = [
+  { id:"n1",  eventId:"a1",  title:"Tokyo struck by major earthquake: infrastructure damage reported across Kanto region",        source:"Reuters",    time:"2m ago",   type:"earthquake", severity:"red",    url:"https://www.reuters.com/world/asia-pacific/",  image:"https://picsum.photos/seed/eq1/280/64",  videoUrl:"https://www.youtube.com/results?search_query=Tokyo+earthquake" },
+  { id:"n2",  eventId:"a5",  title:"Mt. Agung volcano eruption forces mass evacuation of tourist zones in Bali",                  source:"BBC",        time:"18m ago",  type:"volcano",    severity:"red",    url:"https://www.bbc.com/news/world-asia",          image:"https://picsum.photos/seed/vol5/280/64",  videoUrl:"https://www.youtube.com/results?search_query=Bali+volcano+eruption" },
+  { id:"n3",  eventId:"a10", title:"Ecuador–Peru border earthquake triggers tsunami advisory for Pacific coastline",               source:"AP",         time:"34m ago",  type:"earthquake", severity:"red",    url:"https://apnews.com/hub/earthquakes",           image:"https://picsum.photos/seed/eq10/280/64", videoUrl:"https://www.youtube.com/results?search_query=Ecuador+earthquake+tsunami" },
+  { id:"n4",  eventId:"a2",  title:"Cyclone Biparjoy intensifies to Category 3 as it approaches Gujarat coastline",               source:"NDTV",       time:"1h ago",   type:"cyclone",    severity:"orange", url:"https://www.ndtv.com/india-news/",            image:"https://picsum.photos/seed/cy2/280/64",  videoUrl:null },
+  { id:"n5",  eventId:"a8",  title:"Aftermath assessment continues in Anatolia following M6.1 seismic event",                     source:"TRT",        time:"2h ago",   type:"earthquake", severity:"orange", url:"https://www.trtworld.com/turkey",             image:"https://picsum.photos/seed/eq8/280/64",  videoUrl:"https://www.youtube.com/results?search_query=Anatolia+earthquake" },
+  { id:"n6",  eventId:"a3",  title:"Bangladesh delta flooding displaces over five million, aid corridors open",                   source:"Al Jazeera", time:"3h ago",   type:"flood",      severity:"orange", url:"https://www.aljazeera.com/news/",             image:"https://picsum.photos/seed/fl3/280/64",  videoUrl:null },
+  { id:"n7",  eventId:"a4",  title:"Oklahoma seismic swarm: M5.6 event felt across four states, no major damage reported",        source:"USGS",       time:"5h ago",   type:"earthquake", severity:"yellow", url:"https://earthquake.usgs.gov/earthquakes/",    image:"https://picsum.photos/seed/eq4/280/64",  videoUrl:null },
+  { id:"n8",  eventId:"a6",  title:"Offshore tremor near Sydney felt by coastal residents; no tsunami threat issued",             source:"GA",         time:"7h ago",   type:"earthquake", severity:"yellow", url:"https://www.ga.gov.au/scientific-topics/",    image:"https://picsum.photos/seed/eq6/280/64",  videoUrl:null },
+  { id:"n9",  eventId:"a9",  title:"Tropical cyclone forms in southwest Indian Ocean; Mauritius issues advisory",                 source:"Meteo",      time:"9h ago",   type:"cyclone",    severity:"yellow", url:"https://www.meteo.gov.mu/",                   image:"https://picsum.photos/seed/cy9/280/64",  videoUrl:null },
+  { id:"n10", eventId:"a7",  title:"Thames flood barrier raised as heavy rainfall continues across southern England",             source:"BBC",        time:"12h ago",  type:"flood",      severity:"green",  url:"https://www.bbc.com/news/uk-england-london",  image:"https://picsum.photos/seed/fl7/280/64",  videoUrl:null },
+  { id:"n11", eventId:"a1",  title:"Japan Self-Defense Forces mobilize search and rescue teams across Kanto prefectures",         source:"NHK",        time:"15h ago",  type:"earthquake", severity:"red",    url:"https://www3.nhk.or.jp/nhkworld/en/news/",    image:"https://picsum.photos/seed/eq1b/280/64", videoUrl:"https://www.youtube.com/results?search_query=Japan+earthquake+rescue" },
+  { id:"n12", eventId:"a5",  title:"Bali airport suspends operations as ash cloud reaches flight corridors at 12,000 feet",       source:"Reuters",    time:"18h ago",  type:"volcano",    severity:"red",    url:"https://www.reuters.com/world/asia-pacific/", image:"https://picsum.photos/seed/vol5b/280/64", videoUrl:null },
+  { id:"n13", eventId:"a2",  title:"Indian Navy pre-positions disaster response vessels off Gujarat ahead of cyclone landfall",   source:"NDTV",       time:"22h ago",  type:"cyclone",    severity:"orange", url:"https://www.ndtv.com/india-news/",            image:"https://picsum.photos/seed/cy2b/280/64", videoUrl:null },
+  { id:"n14", eventId:"a10", title:"Coastal communities in Ecuador receive evacuation orders as tsunami watches expand",          source:"AP",         time:"1d ago",   type:"earthquake", severity:"red",    url:"https://apnews.com/hub/earthquakes",          image:"https://picsum.photos/seed/eq10b/280/64",videoUrl:"https://www.youtube.com/results?search_query=Ecuador+tsunami+evacuation" },
+  { id:"n15", eventId:"a3",  title:"WHO activates emergency response for flood-affected districts in Dhaka and Sylhet divisions", source:"WHO",        time:"1d ago",   type:"flood",      severity:"orange", url:"https://www.who.int/emergencies/",            image:"https://picsum.photos/seed/fl3b/280/64", videoUrl:null },
+];
+
+const SEVERITY_COLORS = { red: "#ff3333", orange: "#ff8800", yellow: "#ffdd00", green: "#00ff88" };
+const TYPE_LABELS = { earthquake: "SEISMIC", cyclone: "CYCLONE", flood: "FLOOD", volcano: "VOLCANIC", disaster: "DISASTER" };
+
+function timeAgo(iso) {
+  const diff = (Date.now() - new Date(iso)) / 1000;
+  if (diff < 60)   return `${Math.floor(diff)}s ago`;
+  if (diff < 3600) return `${Math.floor(diff/60)}m ago`;
+  if (diff < 86400)return `${Math.floor(diff/3600)}h ago`;
+  return `${Math.floor(diff/86400)}d ago`;
+}
+
+// ─── Flash Alert Banner ───────────────────────────────────────────────────────
+function FlashAlert({ alert, onDismiss }) {
+  useEffect(() => { const t = setTimeout(onDismiss, 5000); return () => clearTimeout(t); }, []);
+  return (
+    <div className="flash-overlay" onClick={onDismiss}>
+      <span>⚠</span>
+      <span>FLASH ALERT: {alert.type?.toUpperCase()} — {alert.description}</span>
+      <span style={{marginLeft:"auto", opacity:0.6, fontSize:"9px"}}>CLICK TO DISMISS</span>
+    </div>
+  );
+}
+
+// ─── News Card ────────────────────────────────────────────────────────────────
+function NewsCard({ item, active, onClick }) {
+  const [imgErr, setImgErr] = useState(false);
+  const cls = `border-sev-${item.severity}`;
+
+  const openLink = (e, url) => {
+    e.stopPropagation();
+    if (url) window.open(url, "_blank", "noopener,noreferrer");
+  };
+
+  const openVideo = (e) => {
+    e.stopPropagation();
+    if (item.videoUrl) window.open(item.videoUrl, "_blank", "noopener,noreferrer");
+  };
+
+  return (
+    <div className={`news-card ${active ? "active" : ""}`} onClick={onClick}>
+      <div style={{display:"flex", alignItems:"center", gap:6, marginBottom:7}}>
+        <div className="pulse-dot" style={{background: SEVERITY_COLORS[item.severity], boxShadow:`0 0 0 0 ${SEVERITY_COLORS[item.severity]}60`}} />
+        <span className={`news-card-badge ${cls}`}>{TYPE_LABELS[item.type] || item.type?.toUpperCase()}</span>
+        <span style={{marginLeft:"auto", fontSize:9, color:"var(--mid)", fontFamily:"var(--font-mono)"}}>{item.time}</span>
+      </div>
+
+      <div className="news-card-title">{item.title}</div>
+
+      {/* Thumbnail / video */}
+      <div className="news-card-thumb" onClick={item.videoUrl ? openVideo : (e) => openLink(e, item.url)}>
+        {item.image && !imgErr ? (
+          <>
+            <img src={item.image} alt="" onError={() => setImgErr(true)} />
+            <div className="thumb-play">
+              <div className="thumb-play-btn">{item.videoUrl ? "▶" : "↗"}</div>
+            </div>
+            {item.videoUrl && <div className="video-badge">VIDEO</div>}
+          </>
+        ) : (
+          <div className="news-card-thumb-inner">
+            {item.videoUrl ? "▶ VIDEO" : "◎ REPORT"}
+          </div>
+        )}
+      </div>
+
+      {/* Footer: source + links */}
+      <div className="news-card-footer">
+        <span className="news-card-src">{item.source}</span>
+        <div style={{display:"flex", gap:8, alignItems:"center"}}>
+          {item.videoUrl && (
+            <a className="news-card-link" href={item.videoUrl} target="_blank" rel="noopener noreferrer"
+               onClick={e => e.stopPropagation()}>▶ Watch</a>
+          )}
+          {item.url && (
+            <a className="news-card-link" href={item.url} target="_blank" rel="noopener noreferrer"
+               onClick={e => e.stopPropagation()}>↗ Read</a>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Intel Panel ──────────────────────────────────────────────────────────────
+function useReverseGeocode(lat, lng) {
+  const [place, setPlace] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const cacheRef = useRef({});
+
+  useEffect(() => {
+    if (lat == null || lng == null) return;
+    const key = `${lat?.toFixed(3)},${lng?.toFixed(3)}`;
+    if (cacheRef.current[key]) { setPlace(cacheRef.current[key]); return; }
+    setLoading(true);
+    setPlace(null);
+    fetch(`https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json&zoom=8`)
+      .then(r => r.json())
+      .then(d => {
+        const addr = d.address || {};
+        const parts = [
+          addr.city || addr.town || addr.village || addr.county,
+          addr.state || addr.region,
+          addr.country,
+        ].filter(Boolean);
+        const result = {
+          display: parts.join(", ") || d.display_name?.split(",").slice(0,3).join(",") || "Unknown",
+          city: addr.city || addr.town || addr.village || addr.county || "—",
+          state: addr.state || addr.region || "—",
+          country: addr.country || "—",
+          countryCode: addr.country_code?.toUpperCase() || "—",
+        };
+        cacheRef.current[key] = result;
+        setPlace(result);
+      })
+      .catch(() => setPlace({ display: "Lookup failed", city:"—", state:"—", country:"—", countryCode:"—" }))
+      .finally(() => setLoading(false));
+  }, [lat, lng]);
+
+  return { place, loading };
+}
+
+function IntelPanel({ event }) {
+  const { place, loading } = useReverseGeocode(event?.lat, event?.lng);
+
+  if (!event) return (
+    <div className="intel-panel">
+      <div className="intel-empty">
+        <div className="intel-empty-icon">◎</div>
+        <div className="intel-empty-text">Select a point</div>
+        <div className="intel-empty-text" style={{marginTop:-8, letterSpacing:"0.05em", fontSize:"9px"}}>Click any event on the globe</div>
+      </div>
+    </div>
+  );
+
+  const sevPct = { red: 100, orange: 75, yellow: 50, green: 25 }[event.severity] || 50;
+  const mag = event.magnitude?.toFixed(1);
+
+  return (
+    <div className="intel-panel">
+      <div className="intel-card">
+        <div className="intel-card-title">Event Intelligence</div>
+        <div className="intel-field">
+          <span className="intel-key">TYPE</span>
+          <span className={`intel-val sev-${event.severity}`}>{TYPE_LABELS[event.type] || event.type?.toUpperCase()}</span>
+        </div>
+        <div className="intel-field">
+          <span className="intel-key">SEVERITY</span>
+          <span className={`intel-val sev-${event.severity}`}>{event.severity?.toUpperCase()}</span>
+        </div>
+        <div className="intel-field">
+          <span className="intel-key">MAGNITUDE</span>
+          <span className="intel-val">{mag || "N/A"}</span>
+        </div>
+        <div className="intel-field">
+          <span className="intel-key">SOURCE</span>
+          <span className="intel-val">{event.source || "—"}</span>
+        </div>
+        <div className="severity-bar">
+          <div className="severity-fill bg-sev-{event.severity}" style={{width:`${sevPct}%`, background: SEVERITY_COLORS[event.severity]}} />
+        </div>
+      </div>
+
+      <div className="intel-card">
+        <div className="intel-card-title">Geospatial Data</div>
+
+        {/* Place name block */}
+        <div style={{marginBottom:12, padding:"9px 10px", background:"rgba(255,255,255,0.04)", border:"1px solid rgba(255,255,255,0.1)"}}>
+          {loading ? (
+            <div style={{display:"flex", alignItems:"center", gap:7}}>
+              <span style={{fontSize:9, color:"var(--mid)", letterSpacing:"0.12em", textTransform:"uppercase", fontFamily:"var(--font-mono)"}}>LOCATING</span>
+              <span style={{display:"inline-block", width:60, height:2, background:"linear-gradient(90deg,rgba(255,255,255,0.1) 0%,rgba(255,255,255,0.5) 50%,rgba(255,255,255,0.1) 100%)", animation:"shimmer 1s infinite"}} />
+            </div>
+          ) : place ? (
+            <>
+              <div style={{fontSize:9, color:"var(--mid)", letterSpacing:"0.15em", textTransform:"uppercase", fontFamily:"var(--font-mono)", marginBottom:5}}>LOCATION</div>
+              <div style={{fontSize:12, color:"#fff", lineHeight:1.5, fontFamily:"var(--font-body)"}}>{place.display}</div>
+            </>
+          ) : null}
+        </div>
+
+        {/* Country / state rows */}
+        {place && !loading && (
+          <>
+            <div className="intel-field">
+              <span className="intel-key">CITY / DISTRICT</span>
+              <span className="intel-val" style={{fontSize:10}}>{place.city}</span>
+            </div>
+            <div className="intel-field">
+              <span className="intel-key">STATE / REGION</span>
+              <span className="intel-val" style={{fontSize:10}}>{place.state}</span>
+            </div>
+            <div className="intel-field">
+              <span className="intel-key">COUNTRY</span>
+              <span className="intel-val" style={{fontSize:10}}>{place.country} <span style={{color:"var(--mid)"}}>[{place.countryCode}]</span></span>
+            </div>
+          </>
+        )}
+
+        {/* Divider */}
+        <div style={{borderTop:"1px solid rgba(255,255,255,0.08)", margin:"10px 0"}} />
+
+        <div className="intel-field">
+          <span className="intel-key">LAT</span>
+          <span className="intel-val">{event.lat?.toFixed(5)}°{event.lat >= 0 ? "N" : "S"}</span>
+        </div>
+        <div className="intel-field">
+          <span className="intel-key">LNG</span>
+          <span className="intel-val">{Math.abs(event.lng?.toFixed(5))}°{event.lng >= 0 ? "E" : "W"}</span>
+        </div>
+        <div className="intel-field">
+          <span className="intel-key">TIMESTAMP</span>
+          <span className="intel-val">{timeAgo(event.timestamp)}</span>
+        </div>
+      </div>
+
+      <div className="intel-card">
+        <div className="intel-card-title">Impact Assessment</div>
+        <div className="intel-field">
+          <span className="intel-key">AFFECTED POP.</span>
+          <span className={`intel-val sev-${event.severity}`}>{event.population || "Calculating..."}</span>
+        </div>
+        <div className="intel-desc">{event.description}</div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Globe Component ──────────────────────────────────────────────────────────
+function GlobeView({ events, onPointClick, flyTo, selected }) {
+  const mountRef = useRef(null);
+  const globeRef = useRef(null);
+  const [ready, setReady] = useState(false);
+
+  useEffect(() => {
+    if (!mountRef.current || globeRef.current) return;
+    const W = mountRef.current.offsetWidth;
+    const H = mountRef.current.offsetHeight;
+
+    const globe = Globe()(mountRef.current);
+    globe
+      .width(W).height(H)
+      .backgroundColor("#000000")
+      .globeImageUrl("")
+      .showGlobe(true)
+      .showAtmosphere(true)
+      .atmosphereColor("rgba(255,255,255,0.08)")
+      .atmosphereAltitude(0.12)
+      .polygonsData([])
+      .polygonCapColor(() => "rgba(255,255,255,0.02)")
+      .polygonSideColor(() => "rgba(0,0,0,0)")
+      .polygonStrokeColor(() => "rgba(255,255,255,0.25)")
+      .polygonAltitude(0.001);
+
+    fetch("https://raw.githubusercontent.com/nvkelso/natural-earth-vector/master/geojson/ne_110m_admin_0_countries.geojson")
+      .then(r => r.json())
+      .then(data => globe.polygonsData(data.features))
+      .catch(() => {});
+
+    globe
+      .pointsData([])
+      .pointLat(d => d.lat)
+      .pointLng(d => d.lng)
+      .pointColor(d => SEVERITY_COLORS[d.severity])
+      .pointRadius(d => d.severity === "red" ? 0.45 : d.severity === "orange" ? 0.35 : 0.25)
+      .pointAltitude(0.01)
+      .pointResolution(8)
+      .onPointClick((point) => {
+        onPointClick(point);
+        globe.pointOfView({ lat: point.lat, lng: point.lng, altitude: 1.4 }, 900);
+        globe.controls().autoRotate = false;
+      })
+      .onPointHover(pt => { mountRef.current.style.cursor = pt ? "pointer" : "default"; });
+
+    // Ripple rings
+    globe
+      .ringsData([])
+      .ringLat(d => d.lat)
+      .ringLng(d => d.lng)
+      .ringColor(d => t => `rgba(${d.severity==="red"?"255,51,51":d.severity==="orange"?"255,136,0":"255,221,0"},${1-t})`)
+      .ringMaxRadius(3.5)
+      .ringPropagationSpeed(0.8)
+      .ringRepeatPeriod(1200);
+
+    // Labels layer for selected place name
+    globe
+      .labelsData([])
+      .labelLat(d => d.lat)
+      .labelLng(d => d.lng)
+      .labelText(d => d.label)
+      .labelSize(d => d.size || 1.4)
+      .labelColor(() => "#ffffff")
+      .labelResolution(3)
+      .labelAltitude(0.025)
+      .labelDotRadius(0.4)
+      .labelDotOrientation(() => "bottom")
+      .labelIncludeDot(true);
+
+    // HTML marker layer for selected pin
+    globe
+      .htmlElementsData([])
+      .htmlLat(d => d.lat)
+      .htmlLng(d => d.lng)
+      .htmlAltitude(0.04)
+      .htmlElement(d => {
+        const wrap = document.createElement("div");
+        wrap.style.cssText = `
+          pointer-events: none;
+          display: flex; flex-direction: column; align-items: center;
+          transform: translate(-50%, -100%);
+        `;
+        wrap.innerHTML = `
+          <div style="
+            background:#000; border:1px solid #fff; color:#fff;
+            font-family:'Space Mono',monospace; font-size:9px; font-weight:700;
+            letter-spacing:0.12em; text-transform:uppercase;
+            padding:4px 8px; white-space:nowrap; max-width:180px;
+            overflow:hidden; text-overflow:ellipsis;
+            box-shadow: 0 0 12px rgba(255,255,255,0.15);
+          ">${d.placeName || d.description}</div>
+          <div style="
+            width:1px; height:14px; background:#fff; opacity:0.7;
+          "></div>
+          <div style="
+            width:6px; height:6px; border-radius:50%;
+            background:${d.color}; border:1.5px solid #fff;
+            box-shadow: 0 0 8px ${d.color};
+          "></div>
+        `;
+        return wrap;
+      });
+
+    globe.controls().autoRotate = true;
+    globe.controls().autoRotateSpeed = 0.4;
+    globe.controls().enableDamping = true;
+    globe.controls().addEventListener("start", () => { globe.controls().autoRotate = false; });
+
+    globeRef.current = globe;
+    setReady(true);
+
+    const resize = () => {
+      if (mountRef.current)
+        globe.width(mountRef.current.offsetWidth).height(mountRef.current.offsetHeight);
+    };
+    window.addEventListener("resize", resize);
+    return () => window.removeEventListener("resize", resize);
+  }, []);
+
+  // Update points + rings
+  useEffect(() => {
+    if (!globeRef.current || !ready) return;
+    globeRef.current.pointsData(events);
+    const rings = events.filter(e => e.severity === "red" || e.severity === "orange");
+    globeRef.current.ringsData(rings);
+  }, [events, ready]);
+
+  // Update selected marker + label
+  useEffect(() => {
+    if (!globeRef.current || !ready) return;
+    if (!selected) {
+      globeRef.current.htmlElementsData([]);
+      globeRef.current.labelsData([]);
+      return;
+    }
+    const color = SEVERITY_COLORS[selected.severity] || "#fff";
+    globeRef.current.htmlElementsData([{ ...selected, color, placeName: selected._placeName || selected.description }]);
+    globeRef.current.labelsData([]);  // HTML marker replaces label layer
+  }, [selected, ready]);
+
+  // Fly to (search or news click)
+  useEffect(() => {
+    if (!flyTo || !globeRef.current) return;
+    globeRef.current.pointOfView({ lat: flyTo.lat, lng: flyTo.lng, altitude: 1.8 }, 1200);
+    globeRef.current.controls().autoRotate = false;
+  }, [flyTo]);
+
+  return <div ref={mountRef} style={{width:"100%", height:"100%", position:"absolute", inset:0}} />;
+}
+
+
+// ─── Search Box with Suggestions + Recents ───────────────────────────────────
+const MAX_RECENTS = 6;
+
+function SearchBox({ onFlyTo }) {
+  const [query, setQuery]       = useState("");
+  const [focused, setFocused]   = useState(false);
+  const [suggestions, setSugg]  = useState([]);
+  const [loading, setLoading]   = useState(false);
+  const [highlighted, setHi]    = useState(-1);
+  const [recents, setRecents]   = useState(() => {
+    try { return JSON.parse(localStorage.getItem("calamity_recents") || "[]"); } catch { return []; }
+  });
+  const debounceRef = useRef(null);
+  const inputRef    = useRef(null);
+  const dropRef     = useRef(null);
+
+  const saveRecent = (item) => {
+    setRecents(prev => {
+      const filtered = prev.filter(r => r.name !== item.name);
+      const updated  = [item, ...filtered].slice(0, MAX_RECENTS);
+      try { localStorage.setItem("calamity_recents", JSON.stringify(updated)); } catch {}
+      return updated;
+    });
+  };
+
+  const removeRecent = (name, e) => {
+    e.stopPropagation();
+    setRecents(prev => {
+      const updated = prev.filter(r => r.name !== name);
+      try { localStorage.setItem("calamity_recents", JSON.stringify(updated)); } catch {}
+      return updated;
+    });
+  };
+
+  const clearRecents = (e) => {
+    e.stopPropagation();
+    setRecents([]);
+    try { localStorage.removeItem("calamity_recents"); } catch {}
+  };
+
+  // Debounced Nominatim suggest
+  useEffect(() => {
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    if (!query.trim() || query.length < 2) { setSugg([]); return; }
+    setLoading(true);
+    debounceRef.current = setTimeout(async () => {
+      try {
+        const r = await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&limit=6&addressdetails=1`);
+        const d = await r.json();
+        setSugg(d.map(item => ({
+          name: item.display_name.split(",").slice(0,2).join(",").trim(),
+          full: item.display_name,
+          lat:  parseFloat(item.lat),
+          lng:  parseFloat(item.lon),
+          type: item.type,
+          class: item.class,
+        })));
+      } catch { setSugg([]); }
+      finally  { setLoading(false); }
+    }, 320);
+    return () => clearTimeout(debounceRef.current);
+  }, [query]);
+
+  // Click outside to close
+  useEffect(() => {
+    const handler = (e) => {
+      if (!dropRef.current?.contains(e.target) && !inputRef.current?.contains(e.target))
+        setFocused(false);
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
+
+  const go = (item) => {
+    onFlyTo({ lat: item.lat, lng: item.lng });
+    saveRecent(item);
+    setQuery(item.name);
+    setFocused(false);
+    setSugg([]);
+    setHi(-1);
+  };
+
+  const handleKeyDown = (e) => {
+    const list = query.trim() ? suggestions : recents;
+    if (e.key === "ArrowDown") { e.preventDefault(); setHi(h => Math.min(h+1, list.length-1)); }
+    if (e.key === "ArrowUp")   { e.preventDefault(); setHi(h => Math.max(h-1, -1)); }
+    if (e.key === "Enter") {
+      e.preventDefault();
+      if (highlighted >= 0 && list[highlighted]) { go(list[highlighted]); return; }
+      if (suggestions[0]) { go(suggestions[0]); return; }
+      // fallback search
+      if (query.trim()) {
+        fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&limit=1`)
+          .then(r=>r.json()).then(d=>{ if(d[0]) go({name:query, lat:parseFloat(d[0].lat), lng:parseFloat(d[0].lon), full:d[0].display_name}); })
+          .catch(()=>{});
+      }
+    }
+    if (e.key === "Escape") { setFocused(false); setHi(-1); }
+  };
+
+  const showDrop = focused;
+  const showSugg = query.trim().length >= 2;
+  const typeIcon = (t) => ({ city:"◉", town:"◉", village:"◎", country:"▣", region:"▣", mountain:"▲", river:"≈", ocean:"≋" }[t] || "◎");
+
+  return (
+    <div className="search-wrap">
+      <input
+        ref={inputRef}
+        className="search-input"
+        placeholder="Search location..."
+        value={query}
+        onChange={e => { setQuery(e.target.value); setHi(-1); }}
+        onFocus={() => setFocused(true)}
+        onKeyDown={handleKeyDown}
+        autoComplete="off"
+      />
+      <button
+        type="button"
+        className="search-btn"
+        onClick={() => { if(suggestions[0]) go(suggestions[0]); }}
+      >⌕</button>
+
+      {showDrop && (
+        <div className="search-dropdown" ref={dropRef}>
+          {/* Live suggestions */}
+          {showSugg && (
+            <>
+              <div className="search-section-label">Search results</div>
+              {loading && (
+                <div className="search-loading">
+                  <div className="search-loading-dot" />
+                  <div className="search-loading-dot" />
+                  <div className="search-loading-dot" />
+                  <span style={{fontSize:10, color:"var(--mid)", marginLeft:4, fontFamily:"var(--font-mono)", letterSpacing:"0.1em"}}>LOCATING</span>
+                </div>
+              )}
+              {!loading && suggestions.length === 0 && (
+                <div className="search-empty">No results for "{query}"</div>
+              )}
+              {suggestions.map((s, i) => (
+                <div
+                  key={i}
+                  className={`search-item ${highlighted===i?"highlighted":""}`}
+                  onMouseEnter={() => setHi(i)}
+                  onMouseDown={() => go(s)}
+                >
+                  <span className="search-item-icon">{typeIcon(s.type)}</span>
+                  <div className="search-item-text">
+                    <div className="search-item-name">{s.name}</div>
+                    <div className="search-item-sub">{s.full?.split(",").slice(2,4).join(",").trim()}</div>
+                  </div>
+                  <span className="search-item-badge" style={{color:"var(--mid)", border:"1px solid rgba(255,255,255,0.1)"}}>{s.class?.toUpperCase()?.slice(0,6)}</span>
+                </div>
+              ))}
+            </>
+          )}
+
+          {/* Recents */}
+          {!showSugg && recents.length > 0 && (
+            <>
+              <div className="search-section-label" style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+                <span>Recent searches</span>
+                <span
+                  onMouseDown={clearRecents}
+                  style={{cursor:"pointer", fontSize:8, color:"var(--mid)", letterSpacing:"0.1em", textTransform:"uppercase", fontFamily:"var(--font-mono)", padding:"0 0 0 12px"}}
+                >CLEAR ALL</span>
+              </div>
+              {recents.map((r, i) => (
+                <div
+                  key={i}
+                  className={`search-item ${highlighted===i?"highlighted":""}`}
+                  onMouseEnter={() => setHi(i)}
+                  onMouseDown={() => go(r)}
+                >
+                  <span className="search-item-icon" style={{fontSize:9}}>↺</span>
+                  <div className="search-item-text">
+                    <div className="search-item-name">{r.name}</div>
+                    <div className="search-item-sub">{r.full?.split(",").slice(1,3).join(",").trim()}</div>
+                  </div>
+                  <span
+                    onMouseDown={(e) => removeRecent(r.name, e)}
+                    style={{fontSize:13, color:"rgba(255,255,255,0.2)", cursor:"pointer", padding:"0 2px", transition:"color 0.1s"}}
+                    onMouseEnter={e => e.currentTarget.style.color="rgba(255,255,255,0.7)"}
+                    onMouseLeave={e => e.currentTarget.style.color="rgba(255,255,255,0.2)"}
+                  >×</span>
+                </div>
+              ))}
+            </>
+          )}
+
+          {/* Empty state */}
+          {!showSugg && recents.length === 0 && (
+            <div className="search-empty">Type to search any location</div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+
+// ─── Live Feed Sidebar ────────────────────────────────────────────────────────
+const FEED_FILTERS = ["ALL","SEISMIC","CYCLONE","FLOOD","VOLCANIC"];
+
+function LiveFeed({ news, activeNews, onNewsClick }) {
+  const [page, setPage]     = useState(0);
+  const [filter, setFilter] = useState("ALL");
+  const [cacheAge, setCacheAge] = useState(null);
+
+  // Simulate cache timestamp display
+  useEffect(() => {
+    setCacheAge(Date.now());
+    const t = setInterval(() => setCacheAge(Date.now()), 60_000);
+    return () => clearInterval(t);
+  }, []);
+
+  // Apply filter
+  const filtered = filter === "ALL"
+    ? news
+    : news.filter(n => (TYPE_LABELS[n.type] || n.type?.toUpperCase()) === filter);
+
+  const totalPages = Math.ceil(filtered.length / ITEMS_PER_PAGE);
+  const paginated  = filtered.slice(page * ITEMS_PER_PAGE, (page + 1) * ITEMS_PER_PAGE);
+
+  // Reset to page 0 when filter changes
+  useEffect(() => { setPage(0); }, [filter]);
+
+  const cacheLabel = cacheAge
+    ? `CACHED ${Math.floor((Date.now()-cacheAge)/60000)}m AGO`
+    : "LIVE";
+
+  return (
+    <div className="sidebar" style={{display:"flex", flexDirection:"column"}}>
+      {/* Header */}
+      <div className="sidebar-header">
+        <div className="pulse-wrap">
+          <div className="pulse-dot" />
+          <span className="sidebar-title">Live Feed</span>
+        </div>
+        <div style={{display:"flex", alignItems:"center", gap:7}}>
+          <span className="cache-badge">{cacheLabel}</span>
+          <span className="sidebar-count">{filtered.length}/{news.length}</span>
+        </div>
+      </div>
+
+      {/* Filter bar */}
+      <div className="feed-filters">
+        {FEED_FILTERS.map(f => (
+          <button
+            key={f}
+            className={`feed-filter-btn ${filter===f?"active":""}`}
+            onClick={() => setFilter(f)}
+          >{f}</button>
+        ))}
+      </div>
+
+      {/* Cards */}
+      <div className="news-cards" style={{flex:1, overflowY:"auto", paddingBottom:4}}>
+        {paginated.length === 0 && (
+          <div style={{padding:"24px 12px", textAlign:"center", fontSize:10, color:"var(--mid)", letterSpacing:"0.1em", fontFamily:"var(--font-mono)"}}>
+            NO {filter} EVENTS
+          </div>
+        )}
+        {paginated.map(item => (
+          <NewsCard
+            key={item.id}
+            item={item}
+            active={item.id === activeNews}
+            onClick={() => onNewsClick(item)}
+          />
+        ))}
+      </div>
+
+      {/* Pagination */}
+      {totalPages > 1 && (
+        <div className="feed-pagination">
+          <button className="page-btn" disabled={page===0} onClick={() => setPage(p=>p-1)}>← PREV</button>
+          <div style={{display:"flex", flexDirection:"column", alignItems:"center", gap:5}}>
+            <div className="page-dots">
+              {Array.from({length:totalPages}).map((_,i)=>(
+                <div key={i} className={`page-dot ${i===page?"active":""}`} onClick={()=>setPage(i)} />
+              ))}
+            </div>
+            <span className="page-info">{page+1} / {totalPages}</span>
+          </div>
+          <button className="page-btn" disabled={page>=totalPages-1} onClick={() => setPage(p=>p+1)}>NEXT →</button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Main App ─────────────────────────────────────────────────────────────────
+function App() {
+  const [events, setEvents]     = useState(MOCK_EVENTS);
+  const [news, setNews]         = useState(MOCK_NEWS);
+  const [selected, setSelected] = useState(null);
+  const [activeNews, setActiveNews] = useState(null);
+  const [flyTo, setFlyTo]       = useState(null);
+  const [flashAlert, setFlashAlert] = useState(null);
+  const [wsStatus, setWsStatus] = useState("DEMO");
+  const [clock, setClock]       = useState(new Date());
+  const wsRef = useRef(null);
+
+  // Clock tick
+  useEffect(() => {
+    const t = setInterval(() => setClock(new Date()), 1000);
+    return () => clearInterval(t);
+  }, []);
+
+  // WebSocket connection
+  useEffect(() => {
+    try {
+      const ws = new WebSocket(WS_URL);
+      wsRef.current = ws;
+      ws.onopen  = () => setWsStatus("LIVE");
+      ws.onclose = () => setWsStatus("OFFLINE");
+      ws.onerror = () => setWsStatus("DEMO");
+      ws.onmessage = (e) => {
+        const msg = JSON.parse(e.data);
+        if (msg.type === "initial_state") {
+          if (msg.events?.length) setEvents(msg.events);
+        }
+        if (msg.type === "flash_alert") {
+          setFlashAlert(msg.event);
+          setEvents(prev => [msg.event, ...prev]);
+        }
+      };
+    } catch(_) {}
+    return () => wsRef.current?.close();
+  }, []);
+
+  const handlePointClick = useCallback(async (point) => {
+    setSelected(point);
+    const linked = news.find(n => n.eventId === point.id);
+    if (linked) setActiveNews(linked.id);
+    try {
+      const r = await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${point.lat}&lon=${point.lng}&format=json&zoom=8`);
+      const d = await r.json();
+      const addr = d.address || {};
+      const parts = [addr.city||addr.town||addr.village||addr.county, addr.country].filter(Boolean);
+      const placeName = parts.join(", ") || d.display_name?.split(",").slice(0,2).join(",") || point.description;
+      setSelected(prev => prev?.id === point.id ? { ...prev, _placeName: placeName } : prev);
+    } catch(_) {}
+  }, [news]);
+
+  const handleNewsClick = (item) => {
+    setActiveNews(item.id);
+    const evt = events.find(e => e.id === item.eventId);
+    if (evt) {
+      setSelected(evt);
+      setFlyTo({ lat: evt.lat, lng: evt.lng });
+    }
+  };
+
+
+
+  const counts = {
+    red:    events.filter(e => e.severity==="red").length,
+    orange: events.filter(e => e.severity==="orange").length,
+    total:  events.length,
+  };
+
+  return (
+    <div style={{height:"100vh", display:"flex", flexDirection:"column", background:"#000"}}>
+      {flashAlert && <FlashAlert alert={flashAlert} onDismiss={() => setFlashAlert(null)} />}
+
+      <div className="shell">
+        <LiveFeed news={news} activeNews={activeNews} onNewsClick={handleNewsClick} />
+
+        {/* CENTER: GLOBE */}
+        <div className="center">
+          <div className="topbar">
+            <span className="brand">CALAMITY MONITOR</span>
+            <SearchBox onFlyTo={setFlyTo} />
+            <div className="stats-row">
+              <div className="stat">
+                <div className="stat-num sev-red">{counts.red}</div>
+                <div className="stat-lbl">RED</div>
+              </div>
+              <div className="stat">
+                <div className="stat-num sev-orange">{counts.orange}</div>
+                <div className="stat-lbl">ORANGE</div>
+              </div>
+              <div className="stat">
+                <div className="stat-num" style={{color:"var(--bright)"}}>{counts.total}</div>
+                <div className="stat-lbl">TOTAL</div>
+              </div>
+            </div>
+          </div>
+
+          <div id="globe-mount" style={{flex:1, position:"relative"}}>
+            <GlobeView events={events} onPointClick={handlePointClick} flyTo={flyTo} selected={selected} />
+            <div className="legend">
+              {["red","orange","yellow","green"].map(s => (
+                <div key={s} className="legend-item">
+                  <div className="legend-dot" style={{background: SEVERITY_COLORS[s]}} />
+                  <span className="legend-label">{s}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="statusbar">
+            <span className="status-item">WS: {wsStatus}</span>
+            <span className="status-sep">|</span>
+            <span className="status-item">UTC {clock.toUTCString().slice(17,25)}</span>
+            <span className="status-sep">|</span>
+            <span className="status-item">SOURCES: USGS · GDACS</span>
+            <span className="status-sep">|</span>
+            <span className="status-item">REFRESH: 5MIN</span>
+            <span className="status-item github-watermark">
+              <a href="https://github.com/Anand1020-pix" target="_blank" rel="noopener noreferrer">GitHub · ANAND Madhavan</a>
+            </span>
+          </div>
+        </div>
+
+        {/* RIGHT: INTEL */}
+        <div className="sidebar sidebar-right">
+          <div className="sidebar-header">
+            <span className="sidebar-title">Intelligence Panel</span>
+            {selected && (
+              <button
+                onClick={() => { setSelected(null); setActiveNews(null); }}
+                style={{background:"none", border:"none", color:"var(--mid)", cursor:"pointer", fontSize:14, padding:0}}
+              >×</button>
+            )}
+          </div>
+          <IntelPanel event={selected} />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+</script>
+</body>
+</html>
