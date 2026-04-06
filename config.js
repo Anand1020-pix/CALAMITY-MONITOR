@@ -1,4 +1,4 @@
 window.CALAMITY_CONFIG = {
-  API_BASE: "http://localhost:8000",
-  WS_URL: "ws://localhost:8000/ws",
+  API_BASE: "https://calamity-monitor.onrender.com",
+  WS_URL: "ws://calamity-monitor.onrender.com/ws",
 };
