@@ -103,8 +103,9 @@
   .news-card-src { font-size: 9px; color: var(--mid); text-transform: uppercase; letter-spacing: 0.1em; }
 
   /* CENTER */
-  .center { position: relative; display: flex; flex-direction: column; }
-  #globe-mount { flex: 1; position: relative; }
+  .center { position: relative; display: flex; flex-direction: column; min-height: 0; }
+  #globe-mount { flex: 1; position: relative; min-height: 0; overflow: hidden; }
+  #globe-mount canvas { display: block; max-width: 100%; }
 
   /* TOP BAR */
   .topbar { 
@@ -282,16 +283,7 @@
     font-size:9px; color:#fff;
     transition: border-color 0.15s, background 0.15s;
   }
-  .thumb-play-btn.is-video {
-    padding-left:2px;
-  }
   .news-card-thumb:hover .thumb-play-btn { border-color:#fff; background:rgba(255,255,255,0.12); }
-  .video-badge {
-    position:absolute; top:5px; right:5px;
-    background:#000; border:1px solid rgba(255,255,255,0.4);
-    font-size:7px; font-family:var(--font-mono); font-weight:700;
-    letter-spacing:0.12em; color:var(--bright); padding:2px 5px; text-transform:uppercase;
-  }
   .news-card-footer { display:flex; justify-content:space-between; align-items:center; margin-top:6px; gap:6px; }
   .news-card-link {
     font-size:9px; color:rgba(255,255,255,0.4); letter-spacing:0.08em; font-family:var(--font-mono);
@@ -299,7 +291,6 @@
     transition: color 0.15s, border-color 0.15s; white-space:nowrap;
   }
   .news-card-link:hover { color:#fff; border-color:#fff; }
-
   /* PAGINATION */
   .feed-pagination {
     display:flex; align-items:center; justify-content:space-between;
@@ -382,6 +373,8 @@
     }
 
     .shell {
+      display: flex;
+      flex-direction: column;
       grid-template-columns: 1fr;
       grid-template-rows: auto auto auto;
       height: auto;
@@ -390,14 +383,20 @@
 
     .center {
       order: 1;
-      min-height: 56vh;
+      min-height: 48vh;
     }
 
     .sidebar,
     .sidebar-right {
       height: auto;
       max-height: none;
+      overflow-y: visible;
       border-right: none;
+      -webkit-overflow-scrolling: touch;
+    }
+
+    .sidebar:not(.sidebar-right) {
+      display: none;
     }
 
     .sidebar {
@@ -414,7 +413,7 @@
     .topbar {
       flex-wrap: wrap;
       gap: 8px;
-      padding: 10px 10px 8px;
+      padding: 8px 8px 6px;
     }
 
     .brand-wrap {
@@ -427,6 +426,11 @@
       letter-spacing: 0.14em;
     }
 
+    .cm-logo {
+      width: 24px;
+      height: 24px;
+    }
+
     .search-wrap {
       order: 2;
       width: 100%;
@@ -434,8 +438,8 @@
     }
 
     .search-input {
-      font-size: 16px;
-      padding: 10px 38px 10px 12px;
+      font-size: 15px;
+      padding: 9px 36px 9px 12px;
     }
 
     .search-btn {
@@ -446,14 +450,17 @@
     .stats-row {
       order: 3;
       width: 100%;
-      justify-content: space-between;
-      flex-wrap: wrap;
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
       gap: 8px;
     }
 
     .stat {
-      min-width: calc(33.333% - 6px);
-      flex: 1 1 calc(33.333% - 6px);
+      min-width: 0;
+    }
+
+    .stat-num {
+      font-size: 15px;
     }
 
     #globe-mount {
@@ -490,20 +497,20 @@
 
     .news-cards {
       max-height: none;
-      padding: 8px;
+      padding: 6px;
     }
 
     .news-card {
-      padding: 10px;
+      padding: 9px;
     }
 
     .news-card-title {
-      font-size: 11px;
-      line-height: 1.45;
+      font-size: 10.5px;
+      line-height: 1.4;
     }
 
     .news-card-thumb {
-      height: 90px;
+      height: 84px;
     }
 
     .news-card-footer {
@@ -529,19 +536,19 @@
 
     .feed-pagination {
       position: static;
-      padding: 8px 10px;
+      padding: 7px 8px;
     }
 
     .intel-panel {
-      padding: 8px;
+      padding: 6px;
     }
 
     .intel-card {
-      padding: 12px;
+      padding: 10px;
     }
 
     .intel-card-title {
-      margin-bottom: 10px;
+      margin-bottom: 8px;
     }
 
     .intel-val {
@@ -561,7 +568,7 @@
     }
 
     .stat-num {
-      font-size: 14px;
+      font-size: 13px;
     }
 
     .status-item {
@@ -573,11 +580,11 @@
     }
 
     .news-card-title {
-      font-size: 10.5px;
+      font-size: 10px;
     }
 
     .news-card-thumb {
-      height: 100px;
+      height: 78px;
     }
 
     .legend {
@@ -681,6 +688,7 @@ const MOCK_NEWS = [
 
 const SEVERITY_COLORS = { red: "#ff3333", orange: "#ff8800", yellow: "#ffdd00", green: "#00ff88" };
 const TYPE_LABELS = { earthquake: "SEISMIC", cyclone: "CYCLONE", flood: "FLOOD", volcano: "VOLCANIC", disaster: "DISASTER" };
+const DEFAULT_EVENT_ID = "a2";
 
 function timeAgo(iso) {
   const diff = (Date.now() - new Date(iso)) / 1000;
@@ -723,16 +731,6 @@ function NewsCard({ item, active, onClick }) {
   const [imgErr, setImgErr] = useState(false);
   const cls = `border-sev-${item.severity}`;
 
-  const openLink = (e, url) => {
-    e.stopPropagation();
-    if (url) window.open(url, "_blank", "noopener,noreferrer");
-  };
-
-  const openVideo = (e) => {
-    e.stopPropagation();
-    if (item.videoUrl) window.open(item.videoUrl, "_blank", "noopener,noreferrer");
-  };
-
   return (
     <div className={`news-card ${active ? "active" : ""}`} onClick={onClick}>
       <div style={{display:"flex", alignItems:"center", gap:6, marginBottom:7}}>
@@ -743,31 +741,12 @@ function NewsCard({ item, active, onClick }) {
 
       <div className="news-card-title">{item.title}</div>
 
-      {/* Thumbnail / video */}
-      <div className="news-card-thumb">
-        {item.image && !imgErr ? (
-          <>
-            <img src={item.image} alt="" onError={() => setImgErr(true)} />
-            <div className="thumb-play">
-              <div className={`thumb-play-btn ${item.videoUrl ? 'is-video' : ''}`}>{item.videoUrl ? "▶" : "↗"}</div>
-            </div>
-            {item.videoUrl && <div className="video-badge">VIDEO</div>}
-          </>
-        ) : (
-          <div className="news-card-thumb-inner">
-            {item.videoUrl ? "▶ VIDEO" : "◎ REPORT"}
-          </div>
-        )}
-      </div>
+      
 
       {/* Footer: source + links */}
       <div className="news-card-footer">
         <span className="news-card-src">{item.source}</span>
         <div style={{display:"flex", gap:8, alignItems:"center"}}>
-          {item.videoUrl && (
-            <a className="news-card-link" href={item.videoUrl} target="_blank" rel="noopener noreferrer"
-               onClick={e => e.stopPropagation()}>▶ Watch</a>
-          )}
           {item.url && (
             <a className="news-card-link" href={item.url} target="_blank" rel="noopener noreferrer"
                onClick={e => e.stopPropagation()}>◎ Feed</a>
@@ -818,6 +797,12 @@ function useReverseGeocode(lat, lng) {
 
 function IntelPanel({ event, relatedNews }) {
   const { place, loading } = useReverseGeocode(event?.lat, event?.lng);
+  const istTime = new Date().toLocaleTimeString("en-GB", {
+    timeZone: "Asia/Kolkata",
+    hour12: false,
+    hour: "2-digit",
+    minute: "2-digit",
+  });
 
   if (!event) return (
     <div className="intel-panel">
@@ -888,7 +873,7 @@ function IntelPanel({ event, relatedNews }) {
             </div>
             <div className="intel-field">
               <span className="intel-key">COUNTRY</span>
-              <span className="intel-val" style={{fontSize:10}}>{place.country} <span style={{color:"var(--mid)"}}>[{place.countryCode}]</span></span>
+              <span className="intel-val" style={{fontSize:10}}>{place.country} </span>
             </div>
           </>
         )}
@@ -906,7 +891,17 @@ function IntelPanel({ event, relatedNews }) {
         </div>
         <div className="intel-field">
           <span className="intel-key">TIMESTAMP</span>
-          <span className="intel-val" title={fullTimestamp(event.timestamp)}>{timeAgo(event.timestamp)}</span>
+          <span className="intel-val" title={fullTimestamp(event.timestamp)}>
+              {new Date(event.timestamp).toLocaleDateString("en-GB", {
+              day: "2-digit",
+              month: "short",
+              year: "numeric",
+            })} {new Date(event.timestamp).toLocaleTimeString("en-GB", {
+              hour12: true,
+              hour: "2-digit",
+              minute: "2-digit",
+            })}
+          </span>
         </div>
       </div>
 
@@ -919,14 +914,6 @@ function IntelPanel({ event, relatedNews }) {
         <div className="intel-desc">{event.description}</div>
         {relatedNews && (
           <div className="intel-actions">
-            {relatedNews.videoUrl && (
-              <a
-                className="intel-action-link"
-                href={relatedNews.videoUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-              >▶ Video</a>
-            )}
             {relatedNews.url && (
               <a
                 className="intel-action-link"
@@ -1059,7 +1046,30 @@ function GlobeView({ events, onPointClick, flyTo, selected }) {
         globe.width(mountRef.current.offsetWidth).height(mountRef.current.offsetHeight);
     };
     window.addEventListener("resize", resize);
-    return () => window.removeEventListener("resize", resize);
+    window.addEventListener("orientationchange", resize);
+
+    // Re-sync canvas size to the actual container box whenever it changes
+    // (mobile layout reflow, font swap, orientation change, etc.), not just
+    // on window resize — this stops the canvas from ever rendering larger
+    // than its container and bleeding into the content below it.
+    let ro;
+    if (typeof ResizeObserver !== "undefined") {
+      ro = new ResizeObserver(() => resize());
+      ro.observe(mountRef.current);
+    }
+    // Also re-sync a couple of times right after mount, since layout
+    // (e.g. topbar wrapping to 2 lines on narrow screens) can still be
+    // settling on the very first paint.
+    const t1 = setTimeout(resize, 50);
+    const t2 = setTimeout(resize, 300);
+
+    return () => {
+      window.removeEventListener("resize", resize);
+      window.removeEventListener("orientationchange", resize);
+      if (ro) ro.disconnect();
+      clearTimeout(t1);
+      clearTimeout(t2);
+    };
   }, []);
 
   // Update points + rings
@@ -1406,10 +1416,6 @@ function LiveFeed({ news, activeNews, onNewsClick }) {
           </div>
           <div className="page-tools">
             <button className="page-btn" disabled={page>=totalPages-1} onClick={() => setPage(p=>p+1)}>NEXT →</button>
-            <button
-              className="page-btn"
-              onClick={() => newsScrollRef.current?.scrollBy({ top: 260, behavior: "smooth" })}
-            >↓ SCROLL</button>
           </div>
         </div>
       )}
@@ -1421,9 +1427,11 @@ function LiveFeed({ news, activeNews, onNewsClick }) {
 function App() {
   const [events, setEvents]     = useState(MOCK_EVENTS);
   const [news, setNews]         = useState(MOCK_NEWS);
-  const [selected, setSelected] = useState(null);
-  const [activeNews, setActiveNews] = useState(null);
-  const [flyTo, setFlyTo]       = useState(null);
+  const defaultSelected = MOCK_EVENTS.find(e => e.id === DEFAULT_EVENT_ID) || MOCK_EVENTS[0] || null;
+  const defaultActiveNews = MOCK_NEWS.find(n => n.eventId === DEFAULT_EVENT_ID) || null;
+  const [selected, setSelected] = useState(defaultSelected);
+  const [activeNews, setActiveNews] = useState(defaultActiveNews?.id || null);
+  const [flyTo, setFlyTo]       = useState(defaultSelected ? { lat: defaultSelected.lat, lng: defaultSelected.lng } : null);
   const [flashAlert, setFlashAlert] = useState(null);
   const [wsStatus, setWsStatus] = useState("DEMO");
   const [clock, setClock]       = useState(new Date());
@@ -1491,7 +1499,7 @@ function App() {
   const relatedNews = selected ? news.find(n => n.eventId === selected.id) : null;
 
   return (
-    <div style={{height:"100vh", display:"flex", flexDirection:"column", background:"#000"}}>
+    <div style={{minHeight:"100vh", display:"flex", flexDirection:"column", background:"#000"}}>
       {flashAlert && <FlashAlert alert={flashAlert} onDismiss={() => setFlashAlert(null)} />}
 
       <div className="shell">
